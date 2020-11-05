@@ -73,7 +73,7 @@ void i2c_meaningful_status(uint8_t status)
 inline void i2c_start() 
 {
 	TWCR = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN); // Send START condition
-	while (!(TWCR & (1 << TWINT))); //Wait for TWINT Flag set. 
+	while (!(TWCR & (1 << TWINT))); //Wait for TWINT Flag 
 }
 
 inline void i2c_stop() 
@@ -91,7 +91,7 @@ inline uint8_t i2c_get_status(void)
 
 inline void i2c_emit_addr(uint8_t address, uint8_t rw) 
 {
-	TWDR = (address | rw); //SLA_W maska
+	TWDR = (address & 0xfe) | (rw & 0x01); // Set EEPROM address and Write or Read bit.
 	TWCR = (1 << TWINT) | (1 << TWEN); //clear interrupt to start transmission 
 	while (!(TWCR & (1 << TWINT)));  // flag
 }
@@ -99,33 +99,28 @@ inline void i2c_emit_addr(uint8_t address, uint8_t rw)
 inline void i2c_emit_byte(uint8_t data) 
 {
 	TWDR = data;
-	TWCR = (1 << TWINT) | (1 << TWEN);
+	TWCR = (1 << TWINT) | (1 << TWEN);//clear interrupt to start transmission 
 	while (!(TWCR & (1 << TWINT)));  // flag
 }
 
 inline uint8_t i2c_read_ACK() 
 {
 	TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWEA); // TWEA ack bit
-	while (!(TWCR & (1 << TWINT))); // wait for start flag shit
+	while (!(TWCR & (1 << TWINT))); // wait for flag
 	return TWDR; // return read data
 }
 
 inline uint8_t i2c_read_NAK() 
 {
-	TWCR = (1 << TWINT) | (1 << TWEN); // ingen ack bit
+	TWCR = (1 << TWINT) | (1 << TWEN); // no ack bit
 	while (!(TWCR & (1 << TWINT))); // wait for flag
 	return TWDR; // return read data
 }
 
 inline void eeprom_wait_until_write_complete() 
 {
-	/*
-	0x18- sla+w transmitt ACK resciv
-	start
-	i2c kontroll biyte för skriv
-	get status 0x18 repeat till 0x18
-	*/
-	while(i2c_get_status() != 0x18)
+	//ACKNOWLEDGE POLLING
+	while(i2c_get_status() != 0x18) // Wait for Master Transmit SLA+W transmitted, ACK received
 	{
 	i2c_start();
 	i2c_emit_addr(0xA0, I2C_W);
@@ -134,61 +129,46 @@ inline void eeprom_wait_until_write_complete()
 
 uint8_t eeprom_read_byte(uint8_t addr) 
 {
-	/*
-	start
-	sen kontroll bit i2c_transmitt address  WRITE
-	sen transmitt btye, som blir adressen
-	start
-	sen kontroll bit i2c_transmitt address  READ
-	sen transmitt btye, som blir data
-	no ack 
-	stop
-	*/
 	uint8_t data = 0;
 	i2c_start();
-	printf_P(PSTR("I2C start\n"));
-	i2c_meaningful_status(i2c_get_status());
+	//i2c_meaningful_status(i2c_get_status());
 	
 	i2c_emit_addr(EEPROM_address, I2C_W); // write
-	printf_P(PSTR("I2C emit address write\n"));
-	i2c_meaningful_status(i2c_get_status());
+	//i2c_meaningful_status(i2c_get_status());
 	
-	i2c_emit_byte(addr);  // set eeprom memory address  ta inputen
-	printf_P(PSTR("I2C set memory address\n"));
-	i2c_meaningful_status(i2c_get_status());
+	i2c_emit_byte(addr);  // set eeprom memory address 
+	//i2c_meaningful_status(i2c_get_status());
 	
-
 	i2c_start();
-	printf_P(PSTR("I2C restart\n"));
-	i2c_meaningful_status(i2c_get_status());
+	//i2c_meaningful_status(i2c_get_status());
 	
 	i2c_emit_addr(EEPROM_address, I2C_R); // read
-	printf_P(PSTR("I2C emit address read\n"));
-	i2c_meaningful_status(i2c_get_status());
+	//i2c_meaningful_status(i2c_get_status());
 
 	data = i2c_read_NAK();
-	printf_P(PSTR("%d\n"), data);
-	printf_P(PSTR("I2C read nak\n"));
-	i2c_meaningful_status(i2c_get_status());
+	//i2c_meaningful_status(i2c_get_status());
 	i2c_stop();
-	printf_P(PSTR("I2C STOP\n"));
-	i2c_meaningful_status(i2c_get_status());
+	//i2c_meaningful_status(i2c_get_status());
 	return data;
 }
 
 void eeprom_write_byte(uint8_t addr, uint8_t data) 
 {
-	/* ...
-	
-	skriva en bit till en address, skicka adress plus data. 
-	först starta
-	sen kontroll bit i2c_transmitt address  WRITE
-	sen transmitt btye, som blir adressen
-	transmitt byte, som blir datat
-	stopp snopp
-	wait until write complete
-	
-	*/
+	i2c_start();
+	//i2c_meaningful_status(i2c_get_status());	
+
+	i2c_emit_addr(EEPROM_address, I2C_W);
+	//i2c_meaningful_status(i2c_get_status());
+
+	i2c_emit_byte(addr);
+	//i2c_meaningful_status(i2c_get_status());
+
+	i2c_emit_byte(data);
+	//i2c_meaningful_status(i2c_get_status());
+
+	i2c_stop();
+
+	eeprom_wait_until_write_complete();
 }
 
 
