@@ -131,54 +131,81 @@ uint8_t eeprom_read_byte(uint8_t addr)
 {
 	uint8_t data = 0;
 	i2c_start();
-	//i2c_meaningful_status(i2c_get_status());
 	
 	i2c_emit_addr(EEPROM_address, I2C_W); // write
-	//i2c_meaningful_status(i2c_get_status());
 	
 	i2c_emit_byte(addr);  // set eeprom memory address 
-	//i2c_meaningful_status(i2c_get_status());
 	
 	i2c_start();
-	//i2c_meaningful_status(i2c_get_status());
 	
 	i2c_emit_addr(EEPROM_address, I2C_R); // read
-	//i2c_meaningful_status(i2c_get_status());
 
 	data = i2c_read_NAK();
-	//i2c_meaningful_status(i2c_get_status());
 	i2c_stop();
-	//i2c_meaningful_status(i2c_get_status());
+
 	return data;
 }
 
 void eeprom_write_byte(uint8_t addr, uint8_t data) 
 {
 	i2c_start();
-	//i2c_meaningful_status(i2c_get_status());	
 
 	i2c_emit_addr(EEPROM_address, I2C_W);
-	//i2c_meaningful_status(i2c_get_status());
 
 	i2c_emit_byte(addr);
-	//i2c_meaningful_status(i2c_get_status());
 
 	i2c_emit_byte(data);
-	//i2c_meaningful_status(i2c_get_status());
 
 	i2c_stop();
 
 	eeprom_wait_until_write_complete();
 }
 
-
-
 void eeprom_write_page(uint8_t addr, uint8_t *data) 
 {
 	// ... (VG)
+	/* check start at addresse is not integer multiples of the page buffer size (8)*/
+	while (addr % 8 != 0)
+	{
+		/*check if closest integer multipels of 8 is up or down*/
+		if (addr % 8 > 4) addr++;
+		else addr--;
+	}
+	i2c_start(); // start
+	i2c_emit_addr(EEPROM_address, I2C_W); 
+	i2c_emit_byte(addr); 
+	int i;
+	for (i = 0; i < 8; i++)
+	{
+	i2c_emit_byte(data[i]); // write byte for byte;
+	}
+
+	i2c_stop();
+
+	eeprom_wait_until_write_complete();
 }
 
 void eeprom_sequential_read(uint8_t *buf, uint8_t start_addr, uint8_t len) 
 {
 	// ... (VG)
+	while (start_addr % 8 != 0)
+	{
+		//start_addr++;
+		if (start_addr % 8 > 4) start_addr++;
+		else start_addr--;
+	}
+	i2c_start();
+	i2c_emit_addr(EEPROM_address, I2C_W); // write
+	i2c_emit_byte(start_addr);  // set eeprom memory address 
+	i2c_start();
+	i2c_emit_addr(EEPROM_address, I2C_R); // read
+
+	int j;
+	for (j = 0; j < (len-1); j++)
+	{
+		buf[j] = i2c_read_ACK(); // send ACK while the byte to read isent the last
+	}
+	buf[len-1] = i2c_read_NAK(); // Read the last byte and with NAK
+	i2c_stop();
+
 }
